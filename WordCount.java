@@ -36,15 +36,18 @@ public class WordCount {
   public static class TokenizerMapper 
        extends Mapper<Object, Text, Text, IntWritable>{
     
-    private final static IntWritable one = new IntWritable(1);
     private Text word = new Text();
+    int multiplier = -1;
 
     public void map(Object key, Text value, Context context
                     ) throws IOException, InterruptedException {
+      if (multiplier == -1) {
+        multiplier = context.getConfiguration().getInt("multiplier", -1);
+      }
       StringTokenizer itr = new StringTokenizer(value.toString());
       while (itr.hasMoreTokens()) {
         word.set(itr.nextToken());
-        context.write(word, one);
+        context.write(word, new IntWritable(multiplier));
       }
     }
   }
@@ -67,14 +70,18 @@ public class WordCount {
 
   public static void main(String[] args) throws Exception {
     Configuration conf = new Configuration();
+    conf.setInt("mapred.max.split.size", 10);
+    conf.setInt("mapred.reduce.tasks", 2);
     String[] otherArgs = new GenericOptionsParser(conf, args).getRemainingArgs();
     if (otherArgs.length < 2) {
       System.err.println("Usage: wordcount <in> [<in>...] <out>");
       System.exit(2);
     }
+    conf.setInt("multiplier", 2);
     Job job = Job.getInstance(conf, "word count");
     job.setJarByClass(WordCount.class);
     job.setMapperClass(TokenizerMapper.class);
+    job.setCombinerClass(IntSumReducer.class);
     job.setReducerClass(IntSumReducer.class);
     job.setOutputKeyClass(Text.class);
     job.setOutputValueClass(IntWritable.class);    // writable, a class that can be serialized
